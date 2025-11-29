@@ -40,6 +40,12 @@ Get these values from your Supabase dashboard under **Settings → API**.
 
 ## Running Locally
 
+Install Depedencies:
+
+```bash
+deno i
+```
+
 Start the dev server:
 
 ```bash
