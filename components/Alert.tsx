@@ -5,7 +5,7 @@ type Variant = "success" | "danger" | "info";
 const variantClass: Record<Variant, string> = {
   success: "alert alert-success",
   danger: "alert alert-danger",
-  info: "alert",
+  info: "alert alert-info",
 };
 
 interface AlertProps {

@@ -14,7 +14,6 @@ function ensureEnvLoaded() {
   try {
     loadSync({ export: true });
   } catch {
-    // Ignore if .env is missing; we'll rely on the actual env vars.
   } finally {
     envLoaded = true;
   }

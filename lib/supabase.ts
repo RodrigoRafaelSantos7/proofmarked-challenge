@@ -38,10 +38,13 @@ export async function clientFromSession(session: Session | null) {
 export async function clientFromTokens(tokens?: Partial<AuthTokens>) {
   const client = createSupabaseUserClient();
   if (tokens?.accessToken && tokens?.refreshToken) {
-    await client.auth.setSession({
+    const { error } = await client.auth.setSession({
       access_token: tokens.accessToken,
       refresh_token: tokens.refreshToken,
     });
+    if (error) {
+      throw new Error(error.message || "Unable to hydrate Supabase session");
+    }
   }
   return client;
 }

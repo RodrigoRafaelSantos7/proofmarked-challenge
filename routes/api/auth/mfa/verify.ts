@@ -8,27 +8,48 @@ import {
 
 const schema = z.object({
   factorId: z.string().min(1),
-  challengeId: z.string().min(1),
   code: z.string().min(6).max(10),
+  tempTokens: z.object({
+    accessToken: z.string(),
+    refreshToken: z.string(),
+  }).optional(),
 });
 
 export const handler = define.handlers({
   async POST(ctx) {
-    const tokens = readAuthTokens(ctx.req);
-    if (!tokens) {
-      return Response.json({ error: "Not authenticated" }, { status: 401 });
-    }
-
     const payload = await ctx.req.json();
     const parsed = schema.safeParse(payload);
     if (!parsed.success) {
       return Response.json({ error: "Invalid payload" }, { status: 400 });
     }
 
-    const client = await clientFromTokens(tokens);
+    const tokens = parsed.data.tempTokens ?? readAuthTokens(ctx.req);
+    if (!tokens) {
+      return Response.json({ error: "Not authenticated" }, { status: 401 });
+    }
+
+    let client;
+    try {
+      client = await clientFromTokens(tokens);
+    } catch {
+      return Response.json({ error: "Not authenticated" }, { status: 401 });
+    }
+
+    const { data: challengeData, error: challengeError } = await client.auth
+      .mfa.challenge({
+        factorId: parsed.data.factorId,
+      });
+
+    if (challengeError || !challengeData) {
+      return Response.json(
+        { error: challengeError?.message ?? "Failed to create challenge" },
+        { status: 400 },
+      );
+    }
+
     const { data, error } = await client.auth.mfa.verify({
       factorId: parsed.data.factorId,
-      challengeId: parsed.data.challengeId,
+      challengeId: challengeData.id,
       code: parsed.data.code,
     });
 
@@ -39,23 +60,11 @@ export const handler = define.handlers({
       );
     }
 
-    const {
-      data: sessionData,
-      error: sessionError,
-    } = await client.auth.setSession({
+    const headers = new Headers({ "content-type": "application/json" });
+    writeSessionCookies(headers, {
       access_token: data.access_token,
       refresh_token: data.refresh_token,
     });
-
-    if (sessionError || !sessionData.session) {
-      return Response.json(
-        { error: sessionError?.message ?? "Unable to refresh session" },
-        { status: 400 },
-      );
-    }
-
-    const headers = new Headers();
-    writeSessionCookies(headers, sessionData.session);
 
     return new Response(JSON.stringify({ ok: true }), {
       status: 200,

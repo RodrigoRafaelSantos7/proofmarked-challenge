@@ -5,8 +5,4 @@ export interface State {
   session: Session | null;
 }
 
-const baseDefine = createDefine<State>();
-
-export const define = baseDefine as typeof baseDefine & {
-  route: any;
-};
+export const define = createDefine<State>();

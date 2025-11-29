@@ -1,52 +1,90 @@
-# Proofmarked Challenge
+# Secure Authentication with MFA
 
-This app is built with [Fresh](https://fresh.deno.dev) and Supabase. Follow the
-steps below to get it running locally.
+Production-ready authentication journey with mandatory MFA (Multi-Factor
+Authentication) using Fresh 2.0, Deno, and Supabase.
+
+## Features
+
+- Email-based registration with invitation links
+- Password setup via secure callback
+- Mandatory TOTP MFA enrollment
+- Protected dashboard requiring AAL2 (password + MFA)
 
 ## Prerequisites
 
-- Install Deno v1.43+ from https://docs.deno.com/runtime/getting_started/installation
-- Have a Supabase project handy so you can copy its API keys
-- (Optional) Install the Supabase CLI if you want to inspect auth data locally
+1. **Deno** - Install from
+   https://docs.deno.com/runtime/getting_started/installation
+2. **Supabase Project** - Create one at https://supabase.com
 
-## Environment variables
+## Supabase Configuration
 
-The app reads the following variables via `requireEnv` in `lib/env.ts`:
+1. Go to your Supabase project dashboard
+2. Navigate to **Authentication → URL Configuration**
+3. Set **Site URL** to: `http://localhost:5173`
+4. Add to **Redirect URLs**: `http://localhost:5173/auth/callback`
+5. Navigate to **Authentication → MFA**
+6. Enable **TOTP** (Time-based One-Time Password)
 
-- `SUPABASE_URL`
-- `SUPABASE_ANON_KEY`
-- `SUPABASE_SERVICE_ROLE_KEY`
+## Environment Setup
 
-Create a `.env` file in the project root with the values from the Supabase
-dashboard:
+Create a `.env` file in the project root:
 
-```
+```env
 SUPABASE_URL=https://YOUR-PROJECT.supabase.co
-SUPABASE_ANON_KEY=...
-SUPABASE_SERVICE_ROLE_KEY=...
+SUPABASE_ANON_KEY=your-anon-key
+SUPABASE_SERVICE_ROLE_KEY=your-service-role-key
+COOKIE_SECURE=false
 ```
 
-You can also copy from the snippet above with `cp .env.example .env` after
-pasting it into a local `.env.example` file.
+Get these values from your Supabase dashboard under **Settings → API**.
 
-## Running locally
+## Running Locally
 
-1. `deno task dev`
-2. Open http://localhost:8000 (Vite will hot-reload on file changes)
+Start the dev server:
 
-Deno will download/import npm dependencies on demand, so you do not need to run
-`npm install`.
+```bash
+deno task dev
+```
 
-## Useful tasks
+This runs Vite in development mode. Once compiled, visit http://localhost:5173
+in your browser.
 
-- `deno task check` — format, lint, and type-check everything
-- `deno task build` — build the production bundle (`_fresh/`)
-- `deno task start` — serve the built app (`deno task build` first)
+## User Journeys
 
-## Troubleshooting
+### New teammates
 
-- Missing env vars: the app throws `Missing required env var` if any of the
-  Supabase keys are absent; double-check `.env`.
-- Wrong Supabase URL or key scopes lead to auth failures; verify them in the
-  Supabase dashboard's API settings.
-- Port already in use: set `PORT=XXXX deno task dev` to bind to another port.
+1. **Register** (`/register`) – capture an email and send a Supabase invite
+2. **Set password** (`/auth/callback`) – validate tokens client-side, submit to
+   `/api/auth/set-password`
+3. **Enroll MFA** (`/mfa/setup`) – enforce QR scan + verification before issuing
+   AAL2 cookies
+4. **Dashboard** (`/dashboard`) – HelloWorld experience gated by middleware
+
+### Returning teammates
+
+1. **Login** (`/login`) – password auth via `/api/auth/login`
+2. **MFA verify** (`/mfa/verify`) – just-in-time challenge/verify using
+   `/api/auth/mfa/verify`
+3. **Dashboard** – only available with valid AAL2 session tokens
+
+## Project Structure
+
+```
+routes/
+├── index.tsx          # Landing page
+├── register.tsx       # Registration form
+├── login.tsx          # Login form
+├── dashboard.tsx      # Protected dashboard
+├── auth/
+│   └── callback.tsx   # Password setup after invite
+├── mfa/
+│   ├── setup.tsx      # MFA enrollment
+│   └── verify.tsx     # MFA verification
+└── api/auth/
+    ├── login.ts       # Login API
+    ├── logout.ts      # Logout API
+    ├── set-password.ts # Password setup API
+    └── mfa/
+        ├── verify.ts  # MFA verify API
+        └── challenge.ts # MFA challenge API
+```

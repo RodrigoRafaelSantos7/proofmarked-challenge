@@ -27,7 +27,7 @@ export const handler = define.handlers({
     }
 
     const email = result.data.email.toLowerCase();
-    const redirectTo = new URL("/login", ctx.req.url).toString();
+    const redirectTo = new URL("/auth/callback", ctx.req.url).toString();
 
     const { error } = await supabaseAdmin.auth.admin.inviteUserByEmail(
       email,
@@ -38,7 +38,6 @@ export const handler = define.handlers({
     );
 
     if (error) {
-      console.error("Invite failed", error);
       return Response.json(
         { error: "Unable to send invite. Please try again." },
         { status: 400 },

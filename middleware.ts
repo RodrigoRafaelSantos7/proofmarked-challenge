@@ -1,22 +1,27 @@
-import type { MiddlewareHandlerContext } from "fresh";
 import { getSessionFromRequest, readAuthTokens } from "./lib/session.ts";
 import { clientFromTokens } from "./lib/supabase.ts";
-import { type State } from "./utils.ts";
+import { define } from "./utils.ts";
 
 const DASHBOARD_PATH = "/dashboard";
 
-export async function handler(
-  req: Request,
-  ctx: MiddlewareHandlerContext<State>,
-) {
-  const url = new URL(req.url);
+const SKIP_SESSION_ROUTES = [
+  "/api/auth/login",
+  "/api/auth/register",
+  "/api/auth/set-password",
+  "/api/auth/mfa/verify",
+  "/api/auth/mfa/challenge",
+  "/auth/callback",
+];
+
+export const handler = define.middleware(async (ctx) => {
+  const url = new URL(ctx.req.url);
   const pathname = url.pathname;
 
-  if (pathname.startsWith("/api")) {
+  if (SKIP_SESSION_ROUTES.some((route) => pathname.startsWith(route))) {
     return await ctx.next();
   }
 
-  const session = await getSessionFromRequest(req);
+  const session = await getSessionFromRequest(ctx.req);
   ctx.state.session = session;
 
   if (!pathname.startsWith(DASHBOARD_PATH)) {
@@ -24,20 +29,36 @@ export async function handler(
   }
 
   if (!session) {
-    return Response.redirect(new URL("/login", req.url), 302);
+    return Response.redirect(new URL("/login", ctx.req.url), 302);
   }
 
-  const tokens = readAuthTokens(req);
+  const tokens = readAuthTokens(ctx.req);
   if (!tokens) {
-    return Response.redirect(new URL("/login", req.url), 302);
+    return Response.redirect(new URL("/login", ctx.req.url), 302);
   }
 
-  const client = await clientFromTokens(tokens);
-  const { data } = await client.auth.mfa.getAuthenticatorAssuranceLevel();
+  let client;
+  try {
+    client = await clientFromTokens(tokens);
+  } catch {
+    return Response.redirect(new URL("/login", ctx.req.url), 302);
+  }
 
-  if (data?.currentLevel !== "aal2") {
-    return Response.redirect(new URL("/mfa/verify", req.url), 302);
+  const { data: aalData } = await client.auth.mfa
+    .getAuthenticatorAssuranceLevel();
+  const { data: factorData } = await client.auth.mfa.listFactors();
+
+  const hasVerifiedFactor = factorData?.totp?.some((f) =>
+    f.status === "verified"
+  );
+
+  if (!hasVerifiedFactor) {
+    return Response.redirect(new URL("/mfa/setup", ctx.req.url), 302);
+  }
+
+  if (aalData?.currentLevel !== "aal2") {
+    return Response.redirect(new URL("/mfa/verify", ctx.req.url), 302);
   }
 
   return await ctx.next();
-}
+});

@@ -4,19 +4,19 @@ interface DashboardNavProps {
 
 export function DashboardNav({ userEmail }: DashboardNavProps) {
   return (
-    <header class="w-full flex items-center justify-between py-6">
+    <header class="w-full flex items-center justify-between py-6 border-b border-black">
       <div>
-        <p class="text-sm uppercase tracking-[0.3em] text-slate-500">
+        <p class="text-xs uppercase tracking-[0.3em] text-gray-500">
           Proofmarked
         </p>
-        <h1 class="text-2xl font-semibold text-slate-900">
+        <h1 class="text-xl font-medium text-black">
           Secure Workforce Console
         </h1>
       </div>
       <div class="flex items-center gap-4">
         <div class="text-right">
-          <p class="text-sm text-slate-500">Signed in</p>
-          <p class="text-base font-medium text-slate-800">
+          <p class="text-xs text-gray-500 uppercase tracking-wide">Signed in</p>
+          <p class="text-sm font-medium text-black">
             {userEmail ?? "—"}
           </p>
         </div>

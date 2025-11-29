@@ -10,9 +10,11 @@ import { type AuthTokens, clientFromTokens } from "./supabase.ts";
 const ACCESS_COOKIE = "pm_access";
 const REFRESH_COOKIE = "pm_refresh";
 
-const envSecure = Deno.env.get("COOKIE_SECURE");
+const envSecure = Deno.env.get("COOKIE_SECURE")?.trim();
 const defaultSecure = Boolean(Deno.env.get("DENO_DEPLOYMENT_ID"));
 const secureFlag = envSecure ? envSecure !== "false" : defaultSecure;
+
+type SessionTokens = Pick<Session, "access_token" | "refresh_token">;
 
 const baseCookie: Omit<Cookie, "name" | "value"> = {
   httpOnly: true,
@@ -31,7 +33,7 @@ export function readAuthTokens(req: Request): AuthTokens | null {
   return { accessToken, refreshToken };
 }
 
-export function writeSessionCookies(headers: Headers, session: Session) {
+export function writeSessionCookies(headers: Headers, session: SessionTokens) {
   if (!session.access_token || !session.refresh_token) {
     throw new Error("Session is missing auth tokens");
   }
@@ -57,7 +59,12 @@ export async function getSessionFromRequest(req: Request) {
   if (!tokens) {
     return null;
   }
-  const client = await clientFromTokens(tokens);
-  const { data } = await client.auth.getSession();
-  return data.session ?? null;
+
+  try {
+    const client = await clientFromTokens(tokens);
+    const { data } = await client.auth.getSession();
+    return data.session ?? null;
+  } catch {
+    return null;
+  }
 }

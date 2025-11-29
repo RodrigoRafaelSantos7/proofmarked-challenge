@@ -35,9 +35,6 @@ export const handler = define.handlers({
       return json({ error: "Missing session response" }, 500);
     }
 
-    const headers = new Headers({ "content-type": "application/json" });
-    writeSessionCookies(headers, session);
-
     const { data: aalData } = await client.auth.mfa
       .getAuthenticatorAssuranceLevel();
 
@@ -46,29 +43,18 @@ export const handler = define.handlers({
 
     if (needsMfa) {
       const { data: factorData } = await client.auth.mfa.listFactors();
-      const factors = factorData?.factors ?? [];
-      const totpFactor = factors.find((factor) =>
-        factor.factor_type === "totp"
-      );
+      const factors = factorData?.totp ?? [];
+      const verifiedFactor = factors.find((f) => f.status === "verified");
 
-      if (!totpFactor) {
+      if (!verifiedFactor) {
+        const headers = new Headers({ "content-type": "application/json" });
+        writeSessionCookies(headers, session);
         return json(
           {
-            error: "No MFA factor found. Please enroll MFA.",
-            enrollUrl: "/mfa/setup",
+            needsEnrollment: true,
+            redirectTo: "/mfa/setup",
           },
-          428,
-          headers,
-        );
-      }
-
-      const { data: challenge, error: challengeError } = await client.auth.mfa
-        .challenge({ factorId: totpFactor.id });
-
-      if (challengeError || !challenge) {
-        return json(
-          { error: "Unable to start MFA challenge" },
-          500,
+          200,
           headers,
         );
       }
@@ -76,19 +62,21 @@ export const handler = define.handlers({
       return json(
         {
           requiresMfa: true,
-          factorId: totpFactor.id,
-          challengeId: challenge.id,
-          factorLabel: totpFactor.friendly_name ?? "Authenticator app",
+          factorId: verifiedFactor.id,
+          factorLabel: verifiedFactor.friendly_name ?? "Authenticator app",
+          tempTokens: {
+            accessToken: session.access_token,
+            refreshToken: session.refresh_token,
+          },
         },
         202,
-        headers,
       );
     }
 
-    return new Response(
-      JSON.stringify({ ok: true }),
-      { status: 200, headers },
-    );
+    const headers = new Headers({ "content-type": "application/json" });
+    writeSessionCookies(headers, session);
+
+    return json({ ok: true, redirectTo: "/dashboard" }, 200, headers);
   },
 });
 
